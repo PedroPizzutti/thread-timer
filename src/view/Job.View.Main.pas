@@ -27,6 +27,7 @@ type
     FTimerJob: TTimerJob;
     procedure DoTimer(Sender: TObject);
     procedure DoFinish(Sender: TObject);
+    procedure DoException(Sender: TObject; AException: Exception);
   public
     { Public declarations }
 
@@ -49,6 +50,17 @@ begin
   FTimerJob.ForceTerminate;
 end;
 
+procedure TForm1.DoException(Sender: TObject; AException: Exception);
+begin
+  TThread.Synchronize(
+    nil,
+    procedure
+    begin
+      Memo1.Lines.Add(AException.Message);
+    end
+  );
+end;
+
 procedure TForm1.DoFinish(Sender: TObject);
 begin
   TThread.Queue(
@@ -62,11 +74,34 @@ end;
 
 procedure TForm1.DoTimer(Sender: TObject);
 begin
+
+  var LRandomNumber: Integer := Random(10);
+
+  if (LRandomNumber mod 2) <> 0 then
+  begin
+    //Se der esse tipo de exceção aqui, o tratamento é interno do timer
+    raise Exception.Create('Erro tratado dentro do timer');
+  end;
+
   TThread.Queue(
     nil,
     procedure
     begin
-      Memo1.Lines.Add(DateTimeToStr(Now));
+      try
+        if (Random(10) mod 2) <> 0 then
+        begin
+          Memo1.Lines.Add('Deu certo!');
+        end
+        else
+        begin
+          raise Exception.Create('Erro tratado externamente');
+        end;
+      except
+        on E: Exception do
+        begin
+          DoException(Sender, E);
+        end;
+      end;
     end
   );
 end;
@@ -74,9 +109,10 @@ end;
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   FTimerJob := TTimerJob.Create(True);
-  FTimerJob.Interval := 5000;
+  FTimerJob.Interval := 2000;
   FTimerJob.OnTimer := DoTimer;
   FTimerJob.OnFinish := DoFinish;
+  FTimerJob.OnException := DoException;
 end;
 
 end.

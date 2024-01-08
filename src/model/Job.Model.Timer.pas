@@ -3,23 +3,31 @@ unit Job.Model.Timer;
 interface
 
 uses
-  System.Classes, 
+  System.SysUtils,
+  System.Classes,
   System.SyncObjs;
 
 type
+  TTimerJobException =
+    reference to procedure(Sender: TObject; AException: Exception);
+
   TTimerJob = class(TThread)
   private
     FEvent: TEvent;
     FOnTimer: TNotifyEvent;
     FInterval: Integer;
     FOnFinish: TNotifyEvent;
+    FOnException: TTimerJobException;
     procedure SetOnTimer(const Value: TNotifyEvent);
     procedure SetInterval(const Value: Integer);
     procedure SetOnFinish(const Value: TNotifyEvent);
+    procedure SetOnException(const Value: TTimerJobException);
   protected
     procedure Execute; override;
+
     procedure DoTimer;
     procedure DoFinish;
+    procedure DoException(AException: Exception);
   public
     procedure AfterConstruction; override;
     procedure BeforeDestruction; override;
@@ -27,6 +35,7 @@ type
     property Interval: Integer read FInterval write SetInterval;
     property OnTimer: TNotifyEvent read FOnTimer write SetOnTimer;
     property OnFinish: TNotifyEvent read FOnFinish write SetOnFinish;
+    property OnException: TTimerJobException read FOnException write SetOnException;
   end;
 
 implementation
@@ -44,6 +53,14 @@ procedure TTimerJob.BeforeDestruction;
 begin
   inherited;
   FEvent.Free;
+end;
+
+procedure TTimerJob.DoException(AException: Exception);
+begin
+  if Assigned(FOnException) then
+  begin
+    FOnException(Self, AException);
+  end;
 end;
 
 procedure TTimerJob.DoFinish;
@@ -74,7 +91,15 @@ begin
       begin
         Exit;
       end;
-      Self.DoTimer;
+
+      try
+        Self.DoTimer;
+      except
+        on E: Exception do
+        begin
+          Self.DoException(E);
+        end;
+      end;
     end;
   finally
     Self.DoFinish;
@@ -89,6 +114,11 @@ end;
 procedure TTimerJob.SetInterval(const Value: Integer);
 begin
   FInterval := Value;
+end;
+
+procedure TTimerJob.SetOnException(const Value: TTimerJobException);
+begin
+  FOnException := Value;
 end;
 
 procedure TTimerJob.SetOnFinish(const Value: TNotifyEvent);
